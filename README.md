@@ -1,4 +1,4 @@
-# CodeAlpha_object-Detection-and-Tracking-
+
 # 🎯 Object Detection and Tracking System
 
 This is a real-time **object detection and tracking** web app using **YOLOv8** and **Deep SORT**, deployed with **Streamlit**. It detects multiple objects in uploaded video files and assigns tracking IDs using Deep SORT.
