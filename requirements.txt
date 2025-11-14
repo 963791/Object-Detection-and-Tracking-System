@@ -1,4 +1,7 @@
-streamlit
-opencv-python-headless==4.9.0.80
 ultralytics
-deep_sort_realtime
+opencv-python-headless
+numpy
+torch
+gradio
+deep-sort-realtime
+ffmpeg-python
