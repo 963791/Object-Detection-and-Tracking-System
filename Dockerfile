@@ -1,19 +1,11 @@
-# Dockerfile
-FROM python:3.10-slim
-
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential ffmpeg git libglib2.0-0 libsm6 libxrender1 libxext6 \
-    && rm -rf /var/lib/apt/lists/*
+FROM python:3.10
 
 WORKDIR /app
 
-COPY . /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
-
-RUN mkdir -p /app/weights
+COPY . .
 
 EXPOSE 7860
 
