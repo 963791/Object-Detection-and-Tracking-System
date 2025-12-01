@@ -1,39 +1,29 @@
+---
+title: "Object Detection & Tracking System"
+emoji: "🎯"
+colorFrom: "indigo"
+colorTo: "teal"
+sdk: "gradio"
+sdk_version: "4.44.1"
+app_file: "app.py"
+pinned: false
+---
 
-# 🎯 Object Detection and Tracking System
+# Object Detection & Tracking (YOLOv8n + DeepSORT)
 
-This is a real-time **object detection and tracking** web app using **YOLOv8** and **Deep SORT**, deployed with **Streamlit**. It detects multiple objects in uploaded video files and assigns tracking IDs using Deep SORT.
+Features:
+- Live webcam (in-browser) — real-time frames streamed to the server
+- Upload image (annotated output)
+- Upload video (processed MP4 returned)
+- YOLOv8n for realtime detection (auto-downloads if weights missing)
+- DeepSORT tracking (IDs + colored trails)
+- Lightweight, tuned for deployment on Hugging Face Spaces
 
 ---
 
-## 🚀 Features
-
-- ✅ Object detection using **pre-trained YOLOv8**
-- ✅ Object tracking using **Deep SORT**
-- ✅ Bounding boxes with **class labels** and **unique tracking IDs**
-- ✅ Streamlit-based interactive UI
-- ✅ Upload and process your own videos
-
----
-
-## 📁 Project Structure
-
-CodeAlpha_object-Detection-and-Tracking-/
-├── app.py # Streamlit UI code
-├── yolo_tracker.py # YOLO + Deep SORT logic
-├── requirements.txt # Python dependencies
-├── runtime.txt # Python version
-├── README.md # Project documentation
-└── models/
-└── yolov8n.pt # YOLO model weights (optional local copy)
-
----
-
-## 🔧 How to Run Locally
-
-### 1. Clone the repository
-
+## How to run locally
+1. Create venv and install:
 ```bash
-git clone https://github.com/963791/CodeAlpha_object-Detection-and-Tracking-.git
-cd CodeAlpha_object-Detection-and-Tracking-
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-streamlit run app.py
