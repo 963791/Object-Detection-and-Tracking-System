@@ -1,6 +1,0 @@
-gradio==4.44.0
-ultralytics==8.2.0
-opencv-python
-deep-sort-realtime
-numpy
-ffmpeg-python
