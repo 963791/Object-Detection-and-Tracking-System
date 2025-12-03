@@ -36,14 +36,19 @@ def detect_objects(frame):
     return frame
 
 def track_objects(frame):
-    results = model.predict(frame)[0]  # YOLO predictions
-    detections = []
+    results = model.predict(
+        frame,
+        conf=0.6,    # increase confidence
+        iou=0.45,
+        imgsz=640,
+        verbose=False
+    )[0]
 
-    # Convert YOLO boxes to DeepSORT format
-    for box, cls in zip(results.boxes.xyxy, results.boxes.cls):
+    detections = []
+    for box, cls, conf in zip(results.boxes.xyxy, results.boxes.cls, results.boxes.conf):
         x1, y1, x2, y2 = map(int, box)
-        score = 0.99  # or use result.boxes.conf if available
-        detections.append(([x1, y1, x2, y2], score))  # ✅ Correct format
+        score = float(conf)  # use YOLO confidence
+        detections.append(([x1, y1, x2, y2], score))
 
     tracks = tracker.update_tracks(detections, frame=frame)
 
@@ -56,6 +61,7 @@ def track_objects(frame):
         cv2.putText(frame, f"ID: {track_id}", (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
     return frame
+
 
 
 
