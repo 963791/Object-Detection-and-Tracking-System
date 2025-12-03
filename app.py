@@ -40,7 +40,7 @@ def track_objects(frame):
     detections = []
     for box, cls in zip(results.boxes.xyxy, results.boxes.cls):
         x1, y1, x2, y2 = map(int, box)
-        detections.append([x1, y1, x2-x1, y2-y1, 0.99])  # bbox + score
+        detections.append([x1, y1, x2, y2, 0.99])  # corrected: use x2, y2
     tracks = tracker.update_tracks(detections, frame=frame)
     for track in tracks:
         if not track.is_confirmed():
@@ -48,8 +48,10 @@ def track_objects(frame):
         x1, y1, x2, y2 = map(int, track.to_ltrb())
         track_id = track.track_id
         cv2.rectangle(frame, (x1, y1), (x2, y2), (255,0,0), 2)
-        cv2.putText(frame, f"ID: {track_id}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 2)
+        cv2.putText(frame, f"ID: {track_id}", (x1, y1-10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 2)
     return frame
+
 
 # -----------------------------
 # 1️⃣ Webcam Input
