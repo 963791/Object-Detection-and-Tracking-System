@@ -80,88 +80,65 @@ def get_label_name(class_id):
 # Simple temporal smoothing structure (for video): keep last label for each bbox center
 recent_labels = {}
 
-def detect_and_track_frame(frame_bgr):
-    """
-    Input: OpenCV BGR frame
-    Returns: annotated frame (BGR)
-    """
-    res = run_yolo(frame_bgr)
-    detections_ds = []  # list of ([x1,y1,x2,y2], score, {optional metadata})
+def detect_and_track_frame(frame):
+    """Run YOLO detection + DeepSORT tracking on a single frame."""
 
-    # Collect detections
-    if hasattr(res, "boxes") and len(res.boxes) > 0:
-        xyxy = res.boxes.xyxy.cpu().numpy()
-        confs = res.boxes.conf.cpu().numpy()
-        clss = res.boxes.cls.cpu().numpy().astype(int)
-        for (box, conf, cls) in zip(xyxy, confs, clss):
-            x1, y1, x2, y2 = map(int, box.tolist())
-            # Put in DeepSORT format: ([x1,y1,x2,y2], score, metadata)
-            detections_ds.append(([x1, y1, x2, y2], float(conf), {"class": int(cls)}))
+    # -------------------------
+    # 1. YOLOv8 DETECTION
+    # -------------------------
+    results = model.predict(frame, conf=0.45, verbose=False)
 
-    # Update tracker
-    tracks = tracker.update_tracks(detections_ds, frame=frame_bgr)
+    detections = []
+    for r in results:
+        for box in r.boxes:
+            x1, y1, x2, y2 = box.xyxy[0].int().tolist()
+            cls = int(box.cls[0].item())
+            conf = float(box.conf[0].item())
+            label = model.model.names[cls]  # Clean English class names
 
-    # Draw boxes and labels
-    annotated = frame_bgr.copy()
+            detections.append({
+                "bbox": [x1, y1, x2, y2],
+                "confidence": conf,
+                "class": label
+            })
+
+    # -------------------------
+    # 2. UPDATE TRACKER
+    # -------------------------
+    tracks = tracker.update_tracks(detections, frame=frame)
+
+    # -------------------------
+    # 3. DRAW DETECTIONS + TRACKS
+    # -------------------------
     for t in tracks:
         if not t.is_confirmed():
             continue
-        x1, y1, x2, y2 = map(int, t.to_ltrb())
-        track_id = t.track_id
-        # Determine label: prefer the class from t.last_detection if exists (DeepSORT metadata pass-through)
-        meta = t.det_confidence if hasattr(t, "det_confidence") else None
-        # Try to extract class from t.last_detection (if available in the tracker implementation)
-        cls = None
-        if t.last_detection and isinstance(t.last_detection, dict):
-            cls = t.last_detection.get("class", None)
 
-        # As a fallback, try to match current detections that intersect this track bbox
-        label = ""
-        best_conf = 0.0
-        for det in detections_ds:
-            (dx1, dy1, dx2, dy2), score, det_meta = det
-            # overlap check
-            inter_x1 = max(x1, dx1); inter_y1 = max(y1, dy1)
-            inter_x2 = min(x2, dx2); inter_y2 = min(y2, dy2)
-            if inter_x2 > inter_x1 and inter_y2 > inter_y1:
-                if score > best_conf:
-                    best_conf = score
-                    cls = det_meta.get("class", cls)
+        det = None
 
-        if cls is not None:
-            label_name = get_label_name(cls)
-        else:
-            label_name = "object"
+        # SAFE ACCESS (prevents crash)
+        if hasattr(t, "last_detection") and isinstance(t.last_detection, dict):
+            det = t.last_detection
 
-        # Temporal smoothing: avoid label flicker if confidence low
-        cx = int((x1 + x2) / 2); cy = int((y1 + y2) / 2)
-        key = f"{track_id}"
-        recent = recent_labels.get(key, (None, 0))  # (label, count)
-        prev_label, prev_count = recent
-        if prev_label is None:
-            recent_labels[key] = (label_name, 1)
-            chosen_label = label_name
-        else:
-            if label_name == prev_label:
-                recent_labels[key] = (label_name, min(prev_count + 1, 10))
-                chosen_label = label_name
-            else:
-                # Only switch if new label has higher confidence or repeated
-                if best_conf >= 0.75:
-                    recent_labels[key] = (label_name, 1)
-                    chosen_label = label_name
-                else:
-                    # keep previous until new label becomes stable
-                    recent_labels[key] = (prev_label, max(prev_count - 1, 0))
-                    chosen_label = prev_label
+        if det is None:
+            continue
 
-        # Draw box + text
-        color = (10, 200, 180)
-        cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
-        txt = f"{chosen_label} | ID:{track_id}"
-        cv2.putText(annotated, txt, (x1, max(y1 - 6, 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
+        x1, y1, x2, y2 = det["bbox"]
+        cls = det["class"]
+        conf = det["confidence"]
+        track_id = t.track_id  # Track ID
 
-    return annotated
+        # Draw bounding box
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        # Label text
+        text = f"ID {track_id} | {cls} {conf:.2f}"
+
+        cv2.putText(frame, text, (x1, y1 - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                    (0, 255, 0), 2)
+
+    return frametated
 
 # ---------------- UI: Input modes ----------------
 st.markdown("**Choose input:**")
