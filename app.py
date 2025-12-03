@@ -1,81 +1,96 @@
+# app.py
 import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
-import tempfile
 
-# Load YOLOv8 model
+# -----------------------------
+# Initialize Models
+# -----------------------------
+st.set_page_config(page_title="Object Detection & Tracking", layout="wide")
+st.title("🟢 Object Detection & Tracking System")
+
+# Load YOLO model
 model = YOLO("yolov8n.pt")
+
+# Initialize DeepSort tracker
 tracker = DeepSort(max_age=30)
 
-st.title("Object Detection & Tracking")
+# -----------------------------
+# Input Options
+# -----------------------------
+input_type = st.radio("Select Input Type:", ["Webcam", "Image Upload", "Video Upload"])
 
-# Select input type
-input_type = st.radio("Select Input Type:", ("Webcam", "Image Upload", "Video Upload"))
+# -----------------------------
+# Helper Functions
+# -----------------------------
+def detect_objects(frame):
+    results = model(frame)[0]
+    for box, cls in zip(results.boxes.xyxy, results.boxes.cls):
+        x1, y1, x2, y2 = map(int, box)
+        label = model.names[int(cls)]
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
+        cv2.putText(frame, label, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+    return frame
 
-# ---------------- Webcam ----------------
+def track_objects(frame):
+    results = model(frame)[0]
+    detections = []
+    for box, cls in zip(results.boxes.xyxy, results.boxes.cls):
+        x1, y1, x2, y2 = map(int, box)
+        detections.append([x1, y1, x2-x1, y2-y1, 0.99])  # bbox + score
+    tracks = tracker.update_tracks(detections, frame=frame)
+    for track in tracks:
+        if not track.is_confirmed():
+            continue
+        x1, y1, x2, y2 = map(int, track.to_ltrb())
+        track_id = track.track_id
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (255,0,0), 2)
+        cv2.putText(frame, f"ID: {track_id}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 2)
+    return frame
+
+# -----------------------------
+# 1️⃣ Webcam Input
+# -----------------------------
 if input_type == "Webcam":
-    img_file_buffer = st.camera_input("Capture an image from your webcam")
-    
-    if img_file_buffer is not None:
-        image = np.array(Image.open(img_file_buffer))
-        results = model.predict(image)
+    webcam_frame = st.camera_input("Capture from Webcam")
+    if webcam_frame is not None:
+        # Convert to OpenCV format
+        img = np.array(Image.open(webcam_frame))
+        img = detect_objects(img)  # Object detection
+        img = track_objects(img)   # Object tracking
+        st.image(img, channels="RGB")
 
-        for result in results:
-            boxes = result.boxes.xyxy.cpu().numpy()
-            class_ids = result.boxes.cls.cpu().numpy()
-            for i, box in enumerate(boxes):
-                x1, y1, x2, y2 = map(int, box)
-                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(image, str(int(class_ids[i])), (x1, y1-10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255,0,0), 2)
-        st.image(image, channels="BGR")
-
-# ---------------- Image Upload ----------------
+# -----------------------------
+# 2️⃣ Image Upload
+# -----------------------------
 elif input_type == "Image Upload":
     uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
-        image = np.array(Image.open(uploaded_file))
-        results = model.predict(image)
+        img = np.array(Image.open(uploaded_file))
+        img = detect_objects(img)
+        img = track_objects(img)
+        st.image(img, channels="RGB")
 
-        for result in results:
-            boxes = result.boxes.xyxy.cpu().numpy()
-            class_ids = result.boxes.cls.cpu().numpy()
-            for i, box in enumerate(boxes):
-                x1, y1, x2, y2 = map(int, box)
-                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(image, str(int(class_ids[i])), (x1, y1-10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255,0,0), 2)
-        st.image(image, channels="BGR")
-
-# ---------------- Video Upload ----------------
+# -----------------------------
+# 3️⃣ Video Upload
+# -----------------------------
 elif input_type == "Video Upload":
-    uploaded_video = st.file_uploader("Upload a video", type=["mp4", "mov", "avi"])
+    uploaded_video = st.file_uploader("Upload a video", type=["mp4", "avi"])
     if uploaded_video is not None:
-        tfile = tempfile.NamedTemporaryFile(delete=False)
-        tfile.write(uploaded_video.read())
-        cap = cv2.VideoCapture(tfile.name)
+        tfile = uploaded_video.name
+        with open(tfile, 'wb') as f:
+            f.write(uploaded_video.read())
         
+        cap = cv2.VideoCapture(tfile)
         stframe = st.empty()
-        
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
-            
-            results = model.predict(frame)
-            
-            for result in results:
-                boxes = result.boxes.xyxy.cpu().numpy()
-                class_ids = result.boxes.cls.cpu().numpy()
-                for i, box in enumerate(boxes):
-                    x1, y1, x2, y2 = map(int, box)
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(frame, str(int(class_ids[i])), (x1, y1-10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255,0,0), 2)
-            
-            stframe.image(frame, channels="BGR")
-        
+            frame = detect_objects(frame)
+            frame = track_objects(frame)
+            stframe.image(frame, channels="RGB")
         cap.release()
